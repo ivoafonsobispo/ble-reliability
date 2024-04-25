@@ -1,10 +1,9 @@
 package pt.ipleiria.gattclient;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattService;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -17,16 +16,15 @@ import android.provider.Settings;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ExpandableListView;
-import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 
 
 public class MainActivity extends Activity {
@@ -41,37 +39,21 @@ public class MainActivity extends Activity {
     private GattClientService mGattClientService = null;
     private boolean mBound = false;
 
-    private GattProfile mGattProfile;
-    private GattClientService.GattCallbackInterface mBLEInterface = new GattClientService.GattCallbackInterface() {
+    private final GattClientService.GattCallbackInterface mBLEInterface = new GattClientService.GattCallbackInterface() {
         @Override
         public void onGattDeviceFound(final BluetoothDevice device, final String id) {
             Log.i("GattCallbackInterface:", "Found Device:\n\tADDR : " + device.getAddress());
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    onDeviceFound(device, id);
-                }
-            });
+            runOnUiThread(() -> onDeviceFound(device, id));
         }
         @Override
         public void onGattServerConnected(final BluetoothGatt bluetoothGatt){
             Log.i("GattCallbackInterface:", "Connected to Device:\n\tADDR : " + bluetoothGatt.getDevice().getAddress());
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    onDeviceConnected(bluetoothGatt);
-                }
-            });
+            runOnUiThread(() -> onDeviceConnected(bluetoothGatt));
     }
         @Override
         public void onGattServerDisconnected(final BluetoothGatt bluetoothGatt){
             Log.i("GattCallbackInterface:", "Disconnected from Device:\n\tADDR : " + bluetoothGatt.getDevice().getAddress());
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    onDeviceDisconnected(bluetoothGatt);
-                }
-            });
+            runOnUiThread(() -> onDeviceDisconnected(bluetoothGatt));
     }
 
     };
@@ -95,6 +77,7 @@ public class MainActivity extends Activity {
 
         scanButton = ((Button) findViewById(R.id.buttonScan));
         scanButton.setOnClickListener(new View.OnClickListener() {
+            @SuppressLint("SetTextI18n")
             @Override
             public void onClick(View v) {
                 if (mGattClientService != null) {
@@ -114,26 +97,22 @@ public class MainActivity extends Activity {
         });
         clearButton = ((Button) findViewById(R.id.buttonClear));
 
-        clearButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if(mGattClientService != null) mGattClientService.clearAvailableDevices();
-                for(String s: mExpandableListGroups){
-                    mExpandableListChildMap.get(s).clear();
-                }
-                mExpandableListAdapter.notifyDataSetChanged();
-
-                if(textViewLog.getEditableText() != null)textViewLog.getEditableText().clear();
-                textViewLog.bringPointIntoView(0);
+        clearButton.setOnClickListener(v -> {
+            if(mGattClientService != null) mGattClientService.clearAvailableDevices();
+            for(String s: mExpandableListGroups){
+                Objects.requireNonNull(mExpandableListChildMap.get(s)).clear();
             }
+            mExpandableListAdapter.notifyDataSetChanged();
+
+            if(textViewLog.getEditableText() != null)textViewLog.getEditableText().clear();
+            textViewLog.bringPointIntoView(0);
         });
 
-        mGattProfile = new GattProfile();
-        mExpandableListGroups = new ArrayList<String>();
-        mExpandableListChildMap = new HashMap<String, List<String>>();
+        mExpandableListGroups = new ArrayList<>();
+        mExpandableListChildMap = new HashMap<>();
         // Adding map data
         mExpandableListGroups.add(GROUP_DEVICE);
-        mExpandableListChildMap.put(GROUP_DEVICE, new ArrayList<String>());
+        mExpandableListChildMap.put(GROUP_DEVICE, new ArrayList<>());
 
 
         mExpandableListAdapter = new ExpandableListAdapter(this, mExpandableListGroups, mExpandableListChildMap);
@@ -143,31 +122,27 @@ public class MainActivity extends Activity {
         mExpandableListView.setAdapter(mExpandableListAdapter);
         for(int i=0; i< mExpandableListGroups.size(); i++)
             mExpandableListView.expandGroup(i);
-        mExpandableListView.setOnChildClickListener(new ExpandableListView.OnChildClickListener() {
-            @Override
-            public boolean onChildClick(ExpandableListView parent, View v,
-                                        int groupPosition, int listPosition, long id) {
-                String group = mExpandableListGroups.get(groupPosition);
-                if(mGattClientService != null){
-                    if(group != null){
-                        String data = mExpandableListChildMap.get( mExpandableListGroups.get(groupPosition))
-                                .get(listPosition);
+        mExpandableListView.setOnChildClickListener((parent, v, groupPosition, listPosition, id) -> {
+            String group = mExpandableListGroups.get(groupPosition);
+            if(mGattClientService != null){
+                if(group != null){
+                    String data = Objects.requireNonNull(mExpandableListChildMap.get(mExpandableListGroups.get(groupPosition)))
+                            .get(listPosition);
 
-                        Toast.makeText(parent.getContext(), group + ":" + data, Toast.LENGTH_SHORT).show();
-                        Log.i("ExpandableListView",group + ":" + data);
+                    Toast.makeText(parent.getContext(), group + ":" + data, Toast.LENGTH_SHORT).show();
+                    Log.i("ExpandableListView",group + ":" + data);
 
-                        if(group.equals(GROUP_DEVICE)){
-                            textViewLog.append("\nTrying to Connect to Device Addr:" + data + "...\n");
-                            mGattClientService.connectToDevice(data);
-                        }
+                    if(group.equals(GROUP_DEVICE)){
+                        textViewLog.append("\nTrying to Connect to Device Addr:" + data + "...\n");
+                        mGattClientService.connectToDevice(data);
                     }
-                }else{
-                    Log.e("ExpandableListView","OnClicked Child: GATT SERVICE NOT CONNECTED TO ACTIVITY!");
                 }
-
-
-                return false;
+            }else{
+                Log.e("ExpandableListView","OnClicked Child: GATT SERVICE NOT CONNECTED TO ACTIVITY!");
             }
+
+
+            return false;
         });
     }
 
@@ -203,20 +178,19 @@ public class MainActivity extends Activity {
         super.onStop();
         if (mBound) {
             if(mGattClientService != null) mGattClientService.clearAvailableDevices();
+            assert mGattClientService != null;
             mGattClientService.scanLeDevice(false);
             for(String s: mExpandableListGroups){
-                mExpandableListChildMap.get(s).clear();
+                Objects.requireNonNull(mExpandableListChildMap.get(s)).clear();
             }
             mExpandableListAdapter.notifyDataSetChanged();
-            //unbindService(mConnection);
-           // mBound = false;
         }
     }
 
     /**
      * Defines callbacks for service binding, passed to bindService()
      */
-    private ServiceConnection mConnection = new ServiceConnection() {
+    private final ServiceConnection mConnection = new ServiceConnection() {
 
         @Override
         public void onServiceConnected(ComponentName className,

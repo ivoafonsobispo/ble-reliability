@@ -1,12 +1,10 @@
 package pt.ipleiria.gattclient;
 
-/**
- * Created by 138 on 1/15/2017.
- */
-
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Typeface;
 import android.view.LayoutInflater;
@@ -17,10 +15,10 @@ import android.widget.TextView;
 
 public class ExpandableListAdapter extends BaseExpandableListAdapter {
 
-    private Context _context;
-    private List<String> listGroups; // header titles
+    private final Context _context;
+    private final List<String> listGroups; // header titles
     // child data in format of header title, child title
-    private HashMap<String, List<String>> listChildMap; //group then list data
+    private final HashMap<String, List<String>> listChildMap; //group then list data
 
     public ExpandableListAdapter(Context context, List<String> listGroups,
                                  HashMap<String, List<String>> listChildMap) {
@@ -30,9 +28,9 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
     }
 
     @Override
-    public Object getChild(int groupPosition, int childPosititon) {
-        return this.listChildMap.get(this.listGroups.get(groupPosition))
-                .get(childPosititon);
+    public Object getChild(int groupPosition, int childPosition) {
+        return Objects.requireNonNull(this.listChildMap.get(this.listGroups.get(groupPosition)))
+                .get(childPosition);
     }
 
     @Override
@@ -40,6 +38,7 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
         return childPosition;
     }
 
+    @SuppressLint("InflateParams")
     @Override
     public View getChildView(int groupPosition, final int childPosition,
                              boolean isLastChild, View convertView, ViewGroup parent) {
@@ -61,7 +60,7 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
 
     @Override
     public int getChildrenCount(int groupPosition) {
-        return this.listChildMap.get(this.listGroups.get(groupPosition))
+        return Objects.requireNonNull(this.listChildMap.get(this.listGroups.get(groupPosition)))
                 .size();
     }
 
@@ -80,6 +79,7 @@ public class ExpandableListAdapter extends BaseExpandableListAdapter {
         return groupPosition;
     }
 
+    @SuppressLint("InflateParams")
     @Override
     public View getGroupView(int groupPosition, boolean isExpanded,
                              View convertView, ViewGroup parent) {
