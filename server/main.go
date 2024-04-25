@@ -44,11 +44,11 @@ func main() {
 	d.Init(onStateChanged)
 
 	// Register a handler to handle incoming data
-	//d.Handle(gatt.CharValueWrite(func(r gatt.Request, data []byte) byte {
-	// This function will be called when data is written to a characteristic on the server
-	//	fmt.Printf("Received data from client: %s\n", string(data))
-	//	return gatt.StatusSuccess
-	//}))
+	d.Handle(gatt.CharValueWrite(func(r gatt.Request, data []byte) byte {
+		// This function will be called when data is written to a characteristic on the server
+		fmt.Printf("Received data from client: %s\n", string(data))
+		return gatt.StatusSuccess // Return success status
+	}))
 
 	select {}
 }

@@ -17,61 +17,54 @@ import android.util.Log;
 
 import java.util.HashMap;
 
-/**
- * Created by 138 on 1/9/2017.
- */
-
 public class GattClientService extends Service {
     private boolean scanning = false;
     private BluetoothGatt mBluetoothGatt;
-    private BluetoothAdapter mBluetoothAdapter; //deviceListAdapter to scan for le devices
-    private static boolean mBound = false;
+    private BluetoothAdapter mBluetoothAdapter;
     private HashMap<String, BluetoothDevice> availableDevices;
-    public interface GattCallbackInterface{
-        void onGattDeviceFound(final BluetoothDevice device, final String id);
-        void onGattServerConnected(final BluetoothGatt bluetoothGatt);
-        void onGattServerDisconnected(final BluetoothGatt bluetoothGatt);
+    private GattCallbackInterface mInterface = null;
+    private static boolean mBound = false;
+
+    public interface GattCallbackInterface {
+        void onGattDeviceFound(BluetoothDevice device, String id);
+        void onGattServerConnected(BluetoothGatt bluetoothGatt);
+        void onGattServerDisconnected(BluetoothGatt bluetoothGatt);
     }
-    GattCallbackInterface mInterface = null;
+
     // Binder given to clients
-
-    private final IBinder mBinder = new BLEServiceBinder();
-    // Random number generator
-
-    /**
-     * Class used for the client Binder.  Because we know this service always
-     * runs in the same process as its clients, we don't need to deal with IPC.
-     */
     public class BLEServiceBinder extends Binder {
         GattClientService getService() {
-            // Return this instance of LocalService so clients can call public methods
             return GattClientService.this;
         }
     }
+
+    private final IBinder mBinder = new BLEServiceBinder();
+
     @Override
     public IBinder onBind(Intent intent) {
         mBound = true;
-        // Initializes Bluetooth deviceListAdapter.
-        //bluetooth system service management class
-        BluetoothManager mBluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE); //get service
-        mBluetoothAdapter = mBluetoothManager.getAdapter();
-        if(mBluetoothAdapter == null){
-            Log.i("GattClientService", "Bluetooth NOT SUPPORTED");
-        }
-        else if(mBluetoothAdapter.isEnabled()) {
-            Log.i("GattClientService", "Bluetooth ENABLED");
-        }
-        else {
-            Log.i("GattClientService", "Bluetooth DISABLED");
-        }
+        initializeBluetooth();
         availableDevices = new HashMap<>();
         return mBinder;
     }
-    //user methods//
+
+    private void initializeBluetooth() {
+        BluetoothManager mBluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        if (mBluetoothManager != null) {
+            mBluetoothAdapter = mBluetoothManager.getAdapter();
+            if (mBluetoothAdapter == null) {
+                Log.i("GattClientService", "Bluetooth NOT SUPPORTED");
+            } else if (mBluetoothAdapter.isEnabled()) {
+                Log.i("GattClientService", "Bluetooth ENABLED");
+            } else {
+                Log.i("GattClientService", "Bluetooth DISABLED");
+            }
+        }
+    }
+
     public void scanLeDevice(final boolean enable) {
         scanning = false;
-        if(mBound && mBluetoothAdapter != null && mBluetoothAdapter.isEnabled())//if enabled
-        {
+        if (mBound && mBluetoothAdapter != null && mBluetoothAdapter.isEnabled()) {
             if (enable) {
                 mBluetoothAdapter.startLeScan(mLeScanCallback);
                 scanning = true;
@@ -85,96 +78,48 @@ public class GattClientService extends Service {
         mInterface = bleInterface;
     }
 
-    public boolean isScanning() {return scanning;}
+    public boolean isScanning() {
+        return scanning;
+    }
 
-    public boolean isBluetoothEnabled() {return mBluetoothAdapter != null && mBluetoothAdapter.isEnabled();}
+    public boolean isBluetoothEnabled() {
+        return mBluetoothAdapter != null && mBluetoothAdapter.isEnabled();
+    }
 
-    public void connectToDevice(String id){
-        BluetoothDevice d = availableDevices.get(id);
-        if(d != null)
-        {
-            if(mBluetoothGatt != null )mBluetoothGatt.disconnect(); //disconnect if already connected
-            mBluetoothGatt = d.connectGatt(this,false,mGattCallback);
-            if(mBluetoothGatt != null ) {
-                mBluetoothGatt.connect();
-            }
-            else
-                Log.i("GattClientService", "Device returned null Gatt Object");
-
+    public void connectToDevice(String id) {
+        BluetoothDevice device = availableDevices.get(id);
+        if (device != null) {
+            if (mBluetoothGatt != null) mBluetoothGatt.disconnect();
+            mBluetoothGatt = device.connectGatt(this, false, mGattCallback);
         }
     }
 
-
-    public void clearAvailableDevices(){
+    public void clearAvailableDevices() {
         availableDevices.clear();
-
     }
-    // Device scan callback.
 
-    private final BluetoothAdapter.LeScanCallback mLeScanCallback =
-            new BluetoothAdapter.LeScanCallback() {
-                @Override
-                public void onLeScan(final BluetoothDevice device, int rssi,
-                                     byte[] scanRecord) {
-                    if(availableDevices.get(device.getAddress()) == null)
-                    {
-                        availableDevices.put(device.getAddress(), device);
-                        mInterface.onGattDeviceFound(device, device.getAddress());
-                    }
-                }
-            };
+    private final BluetoothAdapter.LeScanCallback mLeScanCallback = (device, rssi, scanRecord) -> {
+        if (availableDevices.get(device.getAddress()) == null) {
+            availableDevices.put(device.getAddress(), device);
+            mInterface.onGattDeviceFound(device, device.getAddress());
+        }
+    };
 
-    //gatt callback
-    private final BluetoothGattCallback mGattCallback = new BluetoothGattCallback(){
+    private final BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
         @Override
-        public void onConnectionStateChange(BluetoothGatt gatt, int status,
-        int newState) {
+        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                Log.i("GattClientService:", "Connected to GATT server.");
                 mInterface.onGattServerConnected(mBluetoothGatt);
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                Log.i("GattClientService:", "Disconnected to Gatt Server on Device: " + mBluetoothGatt.getDevice());
                 mInterface.onGattServerDisconnected(mBluetoothGatt);
             }
         }
 
         @Override
-        // Result of a characteristic read operation
-        public void onCharacteristicRead(BluetoothGatt gatt,
-                                         BluetoothGattCharacteristic characteristic,
-                                         int status) {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.i("GattClientService:", "Read GattCharacteristic:" + characteristic);
-            }else{
-                Log.i("GattClientService:", "Failed to Read GattCharacteristic: STATUS:" +status);
-            }
+        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            // Handle characteristic read operation
         }
-        @Override
-        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic
-                characteristic, int status) {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.i("GattClientService:", "Wrote GattCharacteristic:" + characteristic);
-            }else{
-                Log.i("GattClientService:", "Failed to Wrote GattCharacteristic: STATUS:" +status);
-            }
-        }
-        @Override
-        public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor,
-                                     int status) {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.i("GattClientService:", "Wrote GattDescriptor" + descriptor);
-            }else{
-                Log.i("GattClientService:", "Failed to Wrote GattDescriptor: STATUS:" +status);
-            }
-        }
-        @Override
-        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor,
-                                      int status) {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.i("GattClientService:", "Wrote GattDescriptor:" + descriptor);
-            }else{
-                Log.i("GattClientService:", "Failed to Wrote GattDescriptor: STATUS:" +status);
-            }
-        }
+
+        // Implement other callback methods as needed
     };
 }
