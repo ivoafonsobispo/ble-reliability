@@ -2,53 +2,58 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"time"
 
-	"github.com/paypal/gatt"
-	"github.com/paypal/gatt/examples/option"
-	"github.com/paypal/gatt/examples/service"
+	"tinygo.org/x/bluetooth"
 )
 
+var adapter = bluetooth.DefaultAdapter
+
+var counter uint8 = 1
+
 func main() {
-	d, err := gatt.NewDevice(option.DefaultServerOptions...)
-	if err != nil {
-		log.Fatalf("Failed to open device, err: %s", err)
-	}
+	must("enable BLE stack", adapter.Enable())
+	adv := adapter.DefaultAdvertisement()
+	must("config adv", adv.Configure(bluetooth.AdvertisementOptions{
+		LocalName:    "BLE Server",
+		ServiceUUIDs: []bluetooth.UUID{bluetooth.ServiceUUIDHeartRate},
+		ManufacturerData: []bluetooth.ManufacturerDataElement{
+			{CompanyID: 0xffff, Data: []byte{0x01, 0x02}},
+		},
+	}))
+	must("start adv", adv.Start())
 
-	// Register optional handlers.
-	d.Handle(
-		gatt.CentralConnected(func(c gatt.Central) { fmt.Println("Connect: ", c.ID()) }),
-		gatt.CentralDisconnected(func(c gatt.Central) { fmt.Println("Disconnect: ", c.ID()) }),
-	)
+	println("advertising...")
+	address, _ := adapter.Address()
+	println("BLE Server /", address.MAC.String())
 
-	// A mandatory handler for monitoring device state.
-	onStateChanged := func(d gatt.Device, s gatt.State) {
-		fmt.Printf("State: %s\n", s)
-		switch s {
-		case gatt.StatePoweredOn:
-			// Setup GAP and GATT services for Linux implementation.
-			d.AddService(service.NewGapService("BLE Server"))
-			d.AddService(service.NewGattService())
-
-			// Add a custom service to handle incoming data
-			customService := service.NewGattService()
-			d.AddService(customService)
-
-			// Advertise device name and service's UUIDs.
-			d.AdvertiseNameAndServices("BLE Server", []gatt.UUID{customService.UUID()})
-
-		default:
-		}
-	}
-
-	d.Init(onStateChanged)
-
-	// Register a handler to handle incoming data
-	d.Handle(gatt.CharValueWrite(func(r gatt.Request, data []byte) byte {
-		// This function will be called when data is written to a characteristic on the server
-		fmt.Printf("Received data from client: %s\n", string(data))
-		return gatt.StatusSuccess // Return success status
+	var counterMeasurement bluetooth.Characteristic
+	must("add service", adapter.AddService(&bluetooth.Service{
+		UUID: bluetooth.ServiceUUIDHeartRate,
+		Characteristics: []bluetooth.CharacteristicConfig{
+			{
+				Handle: &counterMeasurement,
+				UUID:   bluetooth.CharacteristicUUIDHeartRateMeasurement,
+				Value:  []byte{0, counter},
+				Flags:  bluetooth.CharacteristicNotifyPermission,
+			},
+		},
 	}))
 
-	select {}
+	nextCounter := time.Now()
+	for {
+		nextCounter = nextCounter.Add(time.Minute / time.Duration(counter))
+		currentTime := time.Now().Format("2006-01-02 15:04:05")
+		fmt.Printf("counter: %d | %s\n", counter, currentTime)
+		time.Sleep(time.Second)
+
+		counter++
+		counterMeasurement.Write([]byte{0, counter})
+	}
+}
+
+func must(action string, err error) {
+	if err != nil {
+		panic("failed to " + action + ": " + err.Error())
+	}
 }
