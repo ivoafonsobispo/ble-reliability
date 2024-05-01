@@ -26,7 +26,7 @@ func main() {
 	fmt.Printf("%s | %s\n", BleServerName, address.MAC.String())
 
 	go sendCurrentTimeContinuously()
-	receiveAcknowledgments()
+	//receiveAcknowledgments()
 }
 
 func sendCurrentTimeContinuously() {
@@ -61,14 +61,14 @@ func sendCurrentTimeContinuously() {
 	}
 }
 
-func receiveAcknowledgments() {
-	for {
-		// Implement logic to receive acknowledgments from the receiver
-		// For demonstration purposes, we're simulating receiving acknowledgments here
-		time.Sleep(time.Second * 5)
-		fmt.Println("Received acknowledgment for Seq:", randomSeq())
-	}
-}
+//func receiveAcknowledgments() {
+//	for {
+//		// Implement logic to receive acknowledgments from the receiver
+//		// For demonstration purposes, we're simulating receiving acknowledgments here
+//		time.Sleep(time.Second * 5)
+//		fmt.Println("Received acknowledgment for Seq:", randomSeq())
+//	}
+//}
 
 func sendDataPacket(counterMeasurement bluetooth.Characteristic, payload []byte, seq int) error {
 	// Simulate random packet loss
