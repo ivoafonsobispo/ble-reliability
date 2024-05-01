@@ -10,31 +10,22 @@ import (
 var adapter = bluetooth.DefaultAdapter
 
 func main() {
-	var adv = configureAdvertisement()
-	startAdvertising(adv)
-
-	var counterMeasurement = initializeCurrentTimeCharacteristic()
-	sendCurrentTimeContinuously(counterMeasurement)
-}
-
-func configureAdvertisement() bluetooth.Advertisement {
 	must("enable BLE stack", adapter.Enable())
 	adv := adapter.DefaultAdvertisement()
 	must("config adv", adv.Configure(bluetooth.AdvertisementOptions{
 		LocalName:    "BLE Counter",
 		ServiceUUIDs: []bluetooth.UUID{bluetooth.ServiceUUIDCurrentTime},
 	}))
-	return *adv
-}
 
-func startAdvertising(adv bluetooth.Advertisement) {
 	must("start adv", adv.Start())
 	println("advertising...")
 	address, _ := adapter.Address()
 	println("BLE Counter |", address.MAC.String())
+
+	sendCurrentTimeContinuously()
 }
 
-func initializeCurrentTimeCharacteristic() bluetooth.Characteristic {
+func sendCurrentTimeContinuously() {
 	currentTime := time.Now()
 	currentTimePayload := encodeCurrentTime(currentTime)
 
@@ -51,10 +42,6 @@ func initializeCurrentTimeCharacteristic() bluetooth.Characteristic {
 		},
 	}))
 
-	return counterMeasurement
-}
-
-func sendCurrentTimeContinuously(counterMeasurement bluetooth.Characteristic) {
 	for {
 		currentTime := time.Now()
 		fmt.Printf("Sending current time: %s\n", currentTime.Format("2006-01-02 15:04:05"))
