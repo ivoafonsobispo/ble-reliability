@@ -7,28 +7,33 @@ import (
 	"tinygo.org/x/bluetooth"
 )
 
+const BleServerName = "BLE Counter"
+const TimeFormat = "2006-01-02 15:04:05"
+
 var adapter = bluetooth.DefaultAdapter
 
 func main() {
 	must("enable BLE stack", adapter.Enable())
 	adv := adapter.DefaultAdvertisement()
 	must("config adv", adv.Configure(bluetooth.AdvertisementOptions{
-		LocalName:    "BLE Counter",
+		LocalName:    BleServerName,
 		ServiceUUIDs: []bluetooth.UUID{bluetooth.ServiceUUIDCurrentTime},
 	}))
 
 	must("start adv", adv.Start())
-	println("advertising...")
+	fmt.Println("Advertising...")
 	address, _ := adapter.Address()
-	println("BLE Counter |", address.MAC.String())
+	fmt.Printf("%s | %s\n", BleServerName, address.MAC.String())
 
-	sendCurrentTimeContinuously()
+	go sendCurrentTimeContinuously()
+	receiveAcknowledgments()
 }
 
 func sendCurrentTimeContinuously() {
 	currentTime := time.Now()
-	currentTimePayload := encodeCurrentTime(currentTime)
+	seq := 0
 
+	// Add the service once
 	var counterMeasurement bluetooth.Characteristic
 	must("add service", adapter.AddService(&bluetooth.Service{
 		UUID: bluetooth.ServiceUUIDCurrentTime,
@@ -36,21 +41,44 @@ func sendCurrentTimeContinuously() {
 			{
 				Handle: &counterMeasurement,
 				UUID:   bluetooth.CharacteristicUUIDCurrentTime,
-				Value:  currentTimePayload,
 				Flags:  bluetooth.CharacteristicNotifyPermission,
 			},
 		},
 	}))
 
 	for {
-		currentTime := time.Now()
-		fmt.Printf("Sending current time: %s\n", currentTime.Format("2006-01-02 15:04:05"))
+		fmt.Printf("Sending current time: %s, Seq: %d\n", currentTime.Format(TimeFormat), seq)
 
 		currentTimePayload := encodeCurrentTime(currentTime)
-		counterMeasurement.Write(currentTimePayload)
+		err := sendDataPacket(counterMeasurement, currentTimePayload, seq)
+		if err != nil {
+			fmt.Println("Error sending data packet:", err)
+		}
 
+		seq++
 		time.Sleep(time.Second)
+		currentTime = time.Now()
 	}
+}
+
+func receiveAcknowledgments() {
+	for {
+		// Implement logic to receive acknowledgments from the receiver
+		// For demonstration purposes, we're simulating receiving acknowledgments here
+		time.Sleep(time.Second * 5)
+		fmt.Println("Received acknowledgment for Seq:", randomSeq())
+	}
+}
+
+func sendDataPacket(counterMeasurement bluetooth.Characteristic, payload []byte, seq int) error {
+	// Simulate random packet loss
+	if randomLoss() {
+		return fmt.Errorf("packet lost")
+	}
+
+	// Send data packet over Bluetooth
+	_, err := counterMeasurement.Write(payload)
+	return err
 }
 
 func must(action string, err error) {
@@ -72,4 +100,14 @@ func encodeCurrentTime(t time.Time) []byte {
 	payload[8] = 0
 	payload[9] = 0
 	return payload
+}
+
+func randomLoss() bool {
+	// Simulate random packet loss
+	return time.Now().UnixNano()%5 == 0
+}
+
+func randomSeq() int {
+	// Simulate random sequence number for acknowledgment
+	return int(time.Now().UnixNano() % 10)
 }
