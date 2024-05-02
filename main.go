@@ -14,6 +14,10 @@ var adapter = bluetooth.DefaultAdapter
 
 var savedPacket = make([]byte, 10)
 
+const ConnectionCheckInterval = time.Second * 10
+
+var connectionLost = false
+
 func main() {
 	must("enable BLE stack", adapter.Enable())
 	adv := adapter.DefaultAdvertisement()
@@ -29,6 +33,15 @@ func main() {
 
 	go sendCurrentTimeContinuously()
 	//receiveAcknowledgments()
+
+	// Simulate random loss of connection
+	//go simulateConnectionLoss()
+
+	// Monitor connection status
+	//go monitorConnection()
+
+	// Block indefinitely
+	select {}
 }
 
 func sendCurrentTimeContinuously() {
@@ -61,6 +74,39 @@ func sendCurrentTimeContinuously() {
 		time.Sleep(time.Second)
 		currentTime = time.Now()
 	}
+}
+
+func simulateConnectionLoss() {
+	for {
+		// Simulate random loss of connection
+		if randomLoss() {
+			fmt.Println("Connection lost. Restarting server...")
+			connectionLost = true
+			adapter.StopScan()
+		}
+		time.Sleep(time.Second * 5) // Check connection status every 5 seconds
+	}
+}
+
+func monitorConnection() {
+	ticker := time.NewTicker(ConnectionCheckInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Check connection status
+			if connectionLost {
+				fmt.Println("Connection lost. Restarting server...")
+				restartServer()
+			}
+		}
+	}
+}
+
+func restartServer() {
+	connectionLost = false
+	main()
 }
 
 //func receiveAcknowledgments() {
