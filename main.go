@@ -12,6 +12,8 @@ const TimeFormat = "2006-01-02 15:04:05"
 
 var adapter = bluetooth.DefaultAdapter
 
+var savedPacket = make([]byte, 10)
+
 func main() {
 	must("enable BLE stack", adapter.Enable())
 	adv := adapter.DefaultAdvertisement()
@@ -63,8 +65,6 @@ func sendCurrentTimeContinuously() {
 
 //func receiveAcknowledgments() {
 //	for {
-//		// Implement logic to receive acknowledgments from the receiver
-//		// For demonstration purposes, we're simulating receiving acknowledgments here
 //		time.Sleep(time.Second * 5)
 //		fmt.Println("Received acknowledgment for Seq:", randomSeq())
 //	}
@@ -73,7 +73,17 @@ func sendCurrentTimeContinuously() {
 func sendDataPacket(counterMeasurement bluetooth.Characteristic, payload []byte, seq int) error {
 	// Simulate random packet loss
 	if randomLoss() {
-		return fmt.Errorf("packet lost")
+		copy(savedPacket, payload)
+		return fmt.Errorf("packet loss for Seq: %d", seq)
+	}
+
+	if savedPacket[0] != 0 {
+		_, err := counterMeasurement.Write(savedPacket)
+		if err != nil {
+			return err
+		}
+		savedPacket[0] = 0
+		fmt.Println("Resending saved packet")
 	}
 
 	// Send data packet over Bluetooth
