@@ -31,6 +31,8 @@ func main() {
 	address, _ := adapter.Address()
 	fmt.Printf("%s | %s\n", BleServerName, address.MAC.String())
 
+	time.Sleep(time.Second * 30)
+
 	go sendCurrentTimeContinuously()
 	//receiveAcknowledgments()
 
